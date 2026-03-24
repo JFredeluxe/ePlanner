@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Diamond MS Planner</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#0f1117; --surface:#1a1d27; --surface2:#22263a; --surface3:#2a2f47;
+      --border:#2e3350; --accent:#6c63ff; --accent2:#00d4aa; --accent3:#ff6b6b;
+      --accent4:#ffa94d; --text:#e8eaf6; --text2:#9399b2; --text3:#5c6080;
+      --green:#00d4aa; --orange:#ffa94d; --red:#ff6b6b; --blue:#6c63ff;
+      --radius:14px; --radius-sm:8px; --shadow:0 4px 24px rgba(0,0,0,0.4);
+      --transition:0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    html { scroll-behavior:smooth; }
+    body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden; }
+    ::-webkit-scrollbar{width:6px;height:6px} ::-webkit-scrollbar-track{background:var(--bg)} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px} ::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+    .app-shell{display:grid;grid-template-columns:240px 1fr;grid-template-rows:60px 1fr;min-height:100vh}
+    .topbar{grid-column:1/-1;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:16px;position:sticky;top:0;z-index:100}
+    .topbar-logo{font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:-0.5px;white-space:nowrap}
+    .topbar-sep{flex:1}
+    .topbar-live{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text2)}
+    .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.3)}}
+    .topbar-time{font-size:14px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+    .topbar-actions{display:flex;gap:8px}
+    .cycle-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(108,99,255,0.15);border:1px solid rgba(108,99,255,0.35);border-radius:99px;padding:4px 14px;font-size:13px;font-weight:700;color:#a09bff}
+    .sidebar{background:var(--surface);border-right:1px solid var(--border);padding:20px 12px;display:flex;flex-direction:column;gap:4px;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto}
+    .sidebar-section-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);padding:12px 12px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;font-size:14px;font-weight:500;color:var(--text2);transition:all var(--transition);border:none;background:none;width:100%;text-align:left}
+    .nav-item:hover{background:var(--surface2);color:var(--text)}
+    .nav-item.active{background:linear-gradient(135deg,rgba(108,99,255,0.2),rgba(0,212,170,0.1));color:var(--accent);border:1px solid rgba(108,99,255,0.3)}
+    .nav-item .nav-icon{font-size:16px;width:20px;text-align:center}
+    .nav-item .nav-badge{margin-left:auto;background:var(--accent3);color:white;font-size:10px;font-weight:700;padding:2px 6px;border-radius:99px;min-width:18px;text-align:center}
+    .main{padding:28px;overflow-y:auto;height:calc(100vh - 60px)}
+    .page{display:none} .page.active{display:block;animation:fadeIn 0.2s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .page-header{margin-bottom:28px}
+    .page-header h1{font-size:26px;font-weight:700;letter-spacing:-0.5px;margin-bottom:4px}
+    .page-header p{font-size:14px;color:var(--text2)}
+    .date-bar{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;align-items:center}
+    .date-bar span{font-size:13px;color:var(--text2)}
+    .date-bar .dow{font-size:14px;font-weight:600;color:var(--text)}
+    .date-bar .cycle{font-size:13px;font-weight:700;color:var(--accent)}
+    .date-bar .sep{color:var(--text3)}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+    .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:border-color var(--transition),box-shadow var(--transition)}
+    .card:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+    .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .card-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--text2)}
+    .card-icon{font-size:20px}
+    .card-value{font-size:32px;font-weight:700;letter-spacing:-1px;line-height:1;margin-bottom:4px}
+    .card-note{font-size:12px;color:var(--text3)}
+    .card.accent-purple{border-top:3px solid var(--accent)}
+    .card.accent-green{border-top:3px solid var(--green)}
+    .card.accent-orange{border-top:3px solid var(--orange)}
+    .card.accent-red{border-top:3px solid var(--red)}
+    .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px}
+    .panel-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2)}
+    .panel-title{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+    .panel-body{padding:20px}
+    .live-now-card{background:linear-gradient(135deg,var(--surface2),var(--surface3));border:1px solid rgba(108,99,255,0.4);border-radius:var(--radius);padding:24px;margin-bottom:20px;position:relative;overflow:hidden}
+    .live-now-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+    .live-now-label{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+    .live-now-class{font-size:24px;font-weight:700;margin-bottom:6px}
+    .live-now-meta{font-size:14px;color:var(--text2);margin-bottom:12px}
+    .live-now-next{font-size:13px;color:var(--text3);padding-top:12px;border-top:1px solid var(--border)}
+    .timeline{display:flex;flex-direction:column;gap:4px}
+    .timeline-item{display:grid;grid-template-columns:80px 1fr auto;align-items:center;gap:16px;padding:12px 16px;border-radius:var(--radius-sm);border:1px solid transparent;transition:all var(--transition)}
+    .timeline-item:hover{background:var(--surface2);border-color:var(--border)}
+    .timeline-item.active-block{background:linear-gradient(135deg,rgba(108,99,255,0.15),rgba(0,212,170,0.08));border-color:rgba(108,99,255,0.4)}
+    .timeline-item.past-block{opacity:0.45}
+    .timeline-time{font-size:12px;font-weight:600;color:var(--text2);font-variant-numeric:tabular-nums}
+    .timeline-block-label{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3)}
+    .timeline-class{font-size:14px;font-weight:600}
+    .timeline-teacher{font-size:12px;color:var(--text2)}
+    .timeline-room{font-size:12px;font-weight:700;color:var(--accent2);background:rgba(0,212,170,0.1);padding:4px 10px;border-radius:99px;white-space:nowrap}
+    .badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:var(--surface3);color:var(--text2);border:1px solid var(--border)}
+    .badge.green{background:rgba(0,212,170,0.15);color:var(--green);border-color:rgba(0,212,170,0.3)}
+    .badge.orange{background:rgba(255,169,77,0.15);color:var(--orange);border-color:rgba(255,169,77,0.3)}
+    .badge.red{background:rgba(255,107,107,0.15);color:var(--red);border-color:rgba(255,107,107,0.3)}
+    .badge.blue{background:rgba(108,99,255,0.15);color:var(--blue);border-color:rgba(108,99,255,0.3)}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .form-grid.cols-1{grid-template-columns:1fr}
+    .form-group{display:flex;flex-direction:column;gap:6px}
+    label{font-size:12px;font-weight:600;color:var(--text2);letter-spacing:0.3px}
+    input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 14px;width:100%;transition:border-color var(--transition),box-shadow var(--transition);font-family:inherit}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(108,99,255,0.15)}
+    textarea{resize:vertical;min-height:80px}
+    select option{background:var(--surface2)}
+    button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:var(--radius-sm);border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all var(--transition);font-family:inherit;white-space:nowrap}
+    .btn-primary{background:linear-gradient(135deg,var(--accent),#8b85ff);color:white}
+    .btn-primary:hover{opacity:0.9;transform:translateY(-1px);box-shadow:0 4px 16px rgba(108,99,255,0.4)}
+    .btn-success{background:linear-gradient(135deg,var(--green),#00b894);color:#0f1117}
+    .btn-success:hover{opacity:0.9;transform:translateY(-1px)}
+    .btn-danger{background:rgba(255,107,107,0.15);color:var(--red);border:1px solid rgba(255,107,107,0.3)}
+    .btn-danger:hover{background:rgba(255,107,107,0.25)}
+    .btn-secondary{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
+    .btn-secondary:hover{background:var(--surface3);color:var(--text)}
+    .btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}
+    .btn-ghost:hover{background:var(--surface2);color:var(--text)}
+    .btn-sm{padding:6px 12px;font-size:12px}
+    .btn-icon{padding:8px;border-radius:var(--radius-sm)}
+    .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .hw-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:10px;transition:all var(--transition);position:relative;overflow:hidden}
+    .hw-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+    .hw-item.priority-High::before{background:var(--red)}
+    .hw-item.priority-Medium::before{background:var(--orange)}
+    .hw-item.priority-Low::before{background:var(--green)}
+    .hw-item.done{opacity:0.5}
+    .hw-item.done .hw-title{text-decoration:line-through}
+    .hw-title{font-size:15px;font-weight:600;margin-bottom:4px}
+    .hw-meta{font-size:12px;color:var(--text2);margin-bottom:8px}
+    .hw-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .event-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:10px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;transition:all var(--transition)}
+    .event-item:hover{border-color:var(--accent)}
+    .event-date-badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border-radius:var(--radius-sm);padding:8px 12px;text-align:center;min-width:52px;flex-shrink:0}
+    .event-date-badge .month{font-size:10px;font-weight:700;text-transform:uppercase}
+    .event-date-badge .day{font-size:22px;font-weight:700;line-height:1}
+    .table-wrap{overflow-x:auto;border-radius:var(--radius-sm)}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    thead th{background:var(--surface3);padding:10px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text2);border-bottom:1px solid var(--border)}
+    tbody td{padding:10px 14px;border-bottom:1px solid rgba(46,51,80,0.5);color:var(--text)}
+    tbody tr:hover td{background:var(--surface2)}
+    tbody tr:last-child td{border-bottom:none}
+    .type-pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+    .type-school{background:rgba(0,212,170,0.15);color:var(--green)}
+    .type-half-day{background:rgba(255,169,77,0.15);color:var(--orange)}
+    .type-no-school{background:rgba(255,107,107,0.15);color:var(--red)}
+    .type-weekend{background:rgba(108,99,255,0.15);color:var(--blue)}
+    .block-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+    .block-editor-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;transition:border-color var(--transition)}
+    .block-editor-item:hover{border-color:var(--accent)}
+    .block-letter{font-size:28px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;margin-bottom:4px}
+    .block-time-label{font-size:11px;color:var(--text3);margin-bottom:8px}
+    .location-status{display:flex;align-items:center;gap:10px;padding:14px 18px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px}
+    .location-dot{width:10px;height:10px;border-radius:50%;background:var(--text3);flex-shrink:0}
+    .location-dot.at-school{background:var(--green);box-shadow:0 0 8px var(--green)}
+    .location-dot.away{background:var(--orange)}
+    .location-dot.unknown{background:var(--text3)}
+    #jsonPreview{font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:12px;min-height:400px;background:#0a0c14;color:#a8b3cf;border-color:var(--border);line-height:1.6}
+    .empty-state{text-align:center;padding:48px 24px;color:var(--text3)}
+    .empty-state .empty-icon{font-size:40px;margin-bottom:12px}
+    .empty-state p{font-size:14px}
+    .divider{height:1px;background:var(--border);margin:20px 0}
+    .section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text2);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    @media(max-width:900px){
+      .app-shell{grid-template-columns:1fr;grid-template-rows:60px auto 1fr}
+      .sidebar{position:static;height:auto;flex-direction:row;flex-wrap:wrap;padding:10px;gap:4px;overflow-x:auto}
+      .sidebar-section-label{display:none}
+      .nav-item{padding:8px 12px;font-size:12px}
+      .main{padding:16px;height:auto}
+      .grid-4{grid-template-columns:1fr 1fr}
+      .grid-3{grid-template-columns:1fr 1fr}
+      .grid-2{grid-template-columns:1fr}
+      .form-grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbar-logo">◆ Diamond MS Planner</div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-live"><span class="live-dot"></span><span>Live</span></div>
+    <div class="cycle-pill" id="cycleDayPill">Day —</div>
+    <div class="topbar-time" id="topbarClock">--:--:--</div>
+    <div class="topbar-actions">
+      <button class="btn-ghost btn-sm" onclick="exportJSON()">💾 Export</button>
+      <label class="btn-ghost btn-sm" style="cursor:pointer;">📂 Import<input type="file" id="importFile" accept=".json" style="display:none"/></label>
+      <button class="btn-danger btn-sm" onclick="resetPlanner()">↺ Reset</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <span class="sidebar-section-label">Overview</span>
+    <button class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">🏠</span>Dashboard</button>
+    <button class="nav-item" onclick="showPage('schedule',this)"><span class="nav-icon">📅</span>Today's Schedule</button>
+    <span class="sidebar-section-label">Academics</span>
+    <button class="nav-item" onclick="showPage('homework',this)" id="navHomework"><span class="nav-icon">📚</span>Homework</button>
+    <button class="nav-item" onclick="showPage('events',this)"><span class="nav-icon">🗓️</span>Events</button>
+    <span class="sidebar-section-label">Settings</span>
+    <button class="nav-item" onclick="showPage('blockEditor',this)"><span class="nav-icon">🔧</span>Block Schedule</button>
+    <button class="nav-item" onclick="showPage('calendar',this)"><span class="nav-icon">📆</span>Calendar</button>
+    <button class="nav-item" onclick="showPage('location',this)"><span class="nav-icon">📍</span>Location</button>
+    <button class="nav-item" onclick="showPage('dataEditor',this)"><span class="nav-icon">🗄️</span>Raw Data</button>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <section class="page active" id="page-dashboard">
+      <div class="page-header">
+        <h1>Dashboard</h1>
+        <p id="dashSubtitle">Loading…</p>
+        <div class="date-bar">
+          <span class="dow" id="fdbDow"></span><span class="sep">·</span>
+          <span id="fdbMonth"></span><span id="fdbDay"></span><span class="sep">·</span>
+          <span id="fdbYear"></span><span class="sep">·</span>
+          <span class="cycle" id="fdbCycle"></span>
+        </div>
+      </div>
+      <div class="grid-4" id="summaryCards" style="margin-bottom:20px;"></div>
+      <div class="grid-2">
+        <div>
+          <div class="section-title">⚡ Live Now</div>
+          <div class="live-now-card" id="liveNowCard"><div style="color:var(--text3)">Loading…</div></div>
+        </div>
+        <div>
+          <div class="section-title">📋 Today at a Glance</div>
+          <div class="panel"><div class="panel-body" style="padding:12px;"><div class="timeline" id="dashMiniSchedule"></div></div></div>
+        </div>
+      </div>
+      <div style="margin-top:20px;">
+        <div class="section-title">📚 Upcoming Homework</div>
+        <div id="dashHomework"></div>
+      </div>
+    </section>
+
+    <!-- SCHEDULE -->
+    <section class="page" id="page-schedule">
+      <div class="page-header"><h1>Today's Schedule</h1><p id="schedSubtitle">Full block-by-block view</p></div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">🕐 Block Schedule</span><div id="schedDayBadge"></div></div>
+        <div class="panel-body" style="padding:12px 16px;"><div class="timeline" id="dailySchedule"></div></div>
+      </div>
+    </section>
+
+    <!-- HOMEWORK -->
+    <section class="page" id="page-homework">
+      <div class="page-header"><h1>Homework Tracker</h1><p>Track assignments, priorities, and due dates</p></div>
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">➕ Add Assignment</span></div>
+          <div class="panel-body">
+            <div class="form-grid cols-1">
+              <div class="form-group"><label>Class</label><select id="hwClass"></select></div>
+              <div class="form-group"><label>Title *</label><input type="text" id="hwTitle" placeholder="e.g. Chapter 5 Reading"/></div>
+              <div class="form-group"><label>Due Date *</label><input type="date" id="hwDueDate"/></div>
+              <div class="form-group"><label>Priority</label>
+                <select id="hwPriority">
+                  <option value="Low">🟢 Low</option>
+                  <option value="Medium" selected>🟡 Medium</option>
+                  <option value="High">🔴 High</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Notes</label><textarea id="hwNotes" placeholder="Optional…"></textarea></div>
+            </div>
+            <div class="btn-row"><button class="btn-primary" onclick="addHomework()">➕ Add</button></div>
+          </div>
+        </div>
+        <div><div class="section-title">📋 All Assignments</div><div id="homeworkList"></div></div>
+      </div>
+    </section>
+
+    <!-- EVENTS -->
+    <section class="page" id="page-events">
+      <div class="page-header"><h1>Events</h1><p>School events and personal reminders</p></div>
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">➕ Add Event</span></div>
+          <div class="panel-body">
+            <div class="form-grid cols-1">
+              <div class="form-group"><label>Title *</label><input type="text" id="eventTitle" placeholder="e.g. Jay Peak Ski Trip"/></div>
+              <div class="form-group"><label>Date *</label><input type="date" id="eventDate"/></div>
+              <div class="form-group"><label>Time (optional)</label><input type="time" id="eventTime"/></div>
+              <div class="form-group"><label>Notes</label><textarea id="eventNotes" placeholder="Optional…"></textarea></div>
+            </div>
+            <div class="btn-row"><button class="btn-primary" onclick="addEvent()">➕ Add</button></div>
+          </div>
+        </div>
+        <div><div class="section-title">📋 Upcoming Events</div><div id="eventList"></div></div>
+      </div>
+    </section>
+
+    <!-- BLOCK EDITOR -->
+    <section class="page" id="page-blockEditor">
+      <div class="page-header"><h1>Block Schedule Editor</h1><p>Assign classes to A–G blocks per cycle day</p></div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">🔧 A–G Block Assignments</span></div>
+        <div class="panel-body"><div id="scheduleEditors"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">📅 Calendar Day Override</span></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="form-group"><label>Date</label><input type="date" id="overrideDate"/></div>
+            <div class="form-group"><label>Day Type</label>
+              <select id="overrideType">
+                <option value="school">School Day</option>
+                <option value="half-day">Half Day</option>
+                <option value="no-school">No School</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Cycle Day (1–6)</label><input type="text" id="overrideCycleDay" placeholder="e.g. 3"/></div>
+            <div class="form-group"><label>Note</label><input type="text" id="overrideNote" placeholder="e.g. Snow Day"/></div>
+          </div>
+          <div class="btn-row"><button class="btn-primary" onclick="saveCalendarOverride()">💾 Save Override</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CALENDAR -->
+    <section class="page" id="page-calendar">
+      <div class="page-header"><h1>Official Calendar</h1><p>All loaded school calendar entries</p></div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">📆 Calendar Entries</span><span class="badge" id="calendarCount">0 days</span></div>
+        <div class="panel-body" style="padding:0;">
+          <div class="table-wrap">
+            <table id="calendarTable">
+              <thead><tr><th>Date</th><th>Type</th><th>Cycle Day</th><th>Note</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOCATION -->
+    <section class="page" id="page-location">
+      <div class="page-header"><h1>Location Settings</h1><p>Configure school GPS coordinates</p></div>
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">⚙️ School Location</span></div>
+          <div class="panel-body">
+            <div class="form-grid cols-1">
+              <div class="form-group"><label>Detection Mode</label>
+                <select id="locationMode">
+                  <option value="auto">🔄 Auto (GPS)</option>
+                  <option value="school">🏫 Always At School</option>
+                  <option value="away">🏠 Always Away</option>
+                </select>
+              </div>
+              <div class="form-group"><label>School Latitude</label><input type="text" id="schoolLat" placeholder="e.g. 42.3601"/></div>
+              <div class="form-group"><label>School Longitude</label><input type="text" id="schoolLng" placeholder="e.g. -71.0589"/></div>
+              <div class="form-group"><label>Detection Radius (meters)</label><input type="number" id="schoolRadius" placeholder="250"/></div>
+            </div>
+            <div class="btn-row">
+              <button class="btn-primary" onclick="saveSettings()">💾 Save</button>
+              <button class="btn-secondary" onclick="detectLocation()">📍 Detect Now</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">📍 Current Status</span></div>
+          <div class="panel-body">
+            <div class="location-status"><div class="location-dot" id="locationDot"></div><span id="placeStatus">Unknown</span></div>
+            <div class="divider"></div>
+            <div class="form-grid cols-1">
+              <div class="form-group"><label>Auto Date</label><input type="text" id="liveDate" readonly/></div>
+              <div class="form-group"><label>Auto Time</label><input type="text" id="liveTime" readonly/></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RAW DATA -->
+    <section class="page" id="page-dataEditor">
+      <div class="page-header"><h1>Raw Data Editor</h1><p>Full planner JSON state</p></div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">🗄️ Planner JSON</span>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-secondary btn-sm" onclick="exportJSON()">💾 Export</button>
+            <button class="btn-danger btn-sm" onclick="resetPlanner()">↺ Reset</button>
+          </div>
+        </div>
+        <div class="panel-body"><textarea id="jsonPreview" readonly></textarea></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   DIAMOND MS PLANNER — SINGLE UNIFIED SCRIPT
+   One script tag. No conflicts. No execution order issues.
+═══════════════════════════════════════════════════════════════ */
+
+const STORAGE_KEY = "diamond_ms_planner_v3";
+
+// ── CLASS LIST ───────────────────────────────────────────────────
+const CLASS_NAMES = [
+  "Band 8","Spanish 8","Guided Learning 8","Mathematics 8 Honors",
+  "Social Studies 8","Science 8","English 8","Physical Education 8","WIN"
+];
+
+// ── CYCLE-DAY SCHEDULE (from your master schedule image) ─────────
+const CYCLE_SCHEDULE = {
+  "1":{ A:"Band 8",            B:"Mathematics 8 Honors", C:"Physical Education 8",  D:"English 8",            E:"Science 8",            F:"Spanish 8",        G:"Social Studies 8"     },
+  "2":{ A:"Band 8",            B:"Mathematics 8 Honors", C:"Science 8",             D:"English 8",            E:"Guided Learning 8",    F:"Social Studies 8", G:"WIN"                  },
+  "3":{ A:"Band 8",            B:"Mathematics 8 Honors", C:"Spanish 8",             D:"English 8",            E:"Science 8",            F:"Social Studies 8", G:"Physical Education 8" },
+  "4":{ A:"Guided Learning 8", B:"Mathematics 8 Honors", C:"Spanish 8",             D:"Mathematics 8 Honors", E:"Social Studies 8",     F:"Science 8",        G:"WIN"                  },
+  "5":{ A:"Band 8",            B:"Mathematics 8 Honors", C:"Spanish 8",             D:"Spanish 8",            E:"Mathematics 8 Honors", F:"Science 8",        G:"English 8"            },
+  "6":{ A:"Mathematics 8 Honors", B:"Social Studies 8",  C:"English 8",             D:"Guided Learning 8",    E:"English 8",            F:"Science 8",        G:"WIN"                  },
+  "0":{ A:"English 8",         B:"Mathematics 8 Honors", C:"Science 8",             D:"Social Studies 8",     E:"",                     F:"",                 G:""                     }
+};
+
+// ── DEFAULT DATA ─────────────────────────────────────────────────
+const defaultData = {
+  settings:{ schoolLocation:{ lat:"", lng:"", radiusMeters:250 }, locationMode:"auto" },
+  classes:[
+    { id:"band",    name:"Band 8",               teacher:"La Rose / Wallace", room:"CAF" },
+    { id:"spanish", name:"Spanish 8",            teacher:"Verrengia, Raquel", room:"131" },
+    { id:"guided",  name:"Guided Learning 8",    teacher:"Vosland, Cecelia",  room:"238" },
+    { id:"math",    name:"Mathematics 8 Honors", teacher:"Finkelstein, Tatyana", room:"243" },
+    { id:"social",  name:"Social Studies 8",     teacher:"Bosbach, Samuel",   room:"245" },
+    { id:"science", name:"Science 8",            teacher:"Dautrich, Kenneth", room:"224" },
+    { id:"english", name:"English 8",            teacher:"Weems, Zoe",        room:"110" },
+    { id:"pe",      name:"Physical Education 8", teacher:"Ehrhart, Corey",    room:"GYM"},
+    { id:"win",     name:"WIN",                  teacher:"",                  room:""    }
+  ],
+  bellSchedule:{
+    A:{ start:"08:05", end:"08:56" },
+    B:{ start:"09:00", end:"09:46" },
+    C:{ start:"09:50", end:"10:36" },
+    D:{ start:"10:40", end:"12:08" },
+    E:{ start:"12:12", end:"12:58" },
+    F:{ start:"13:02", end:"13:48" },
+    G:{ start:"13:52", end:"14:40" }
+  },
+  blockSchedule:{ A:"English 8", B:"Mathematics 8 Honors", C:"Science 8", D:"Social Studies 8", E:"Spanish 8", F:"Band 8", G:"Physical Education 8" },
+  calendar:{
+    "2026-03-02":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-03-03":{ type:"school",    cycleDay:"3", note:"Official calendar" },
+    "2026-03-04":{ type:"school",    cycleDay:"4", note:"Official calendar" },
+    "2026-03-05":{ type:"school",    cycleDay:"5", note:"Official calendar" },
+    "2026-03-06":{ type:"half-day",  cycleDay:"0", note:"Scheduled Half-Day" },
+    "2026-03-09":{ type:"school",    cycleDay:"6", note:"Official calendar" },
+    "2026-03-10":{ type:"school",    cycleDay:"1", note:"Official calendar" },
+    "2026-03-11":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-03-12":{ type:"school",    cycleDay:"3", note:"Official calendar" },
+    "2026-03-13":{ type:"school",    cycleDay:"4", note:"Official calendar" },
+    "2026-03-16":{ type:"school",    cycleDay:"5", note:"Official calendar" },
+    "2026-03-17":{ type:"school",    cycleDay:"6", note:"Official calendar" },
+    "2026-03-18":{ type:"school",    cycleDay:"1", note:"Official calendar" },
+    "2026-03-19":{ type:"no-school", cycleDay:"",  note:"Schools Closed" },
+    "2026-03-20":{ type:"no-school", cycleDay:"",  note:"Schools Closed" },
+    "2026-03-23":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-03-24":{ type:"school",    cycleDay:"3", note:"MCAS: Grades 6-8 ELA 1" },
+    "2026-03-25":{ type:"school",    cycleDay:"4", note:"MCAS: Grades 6-8 ELA 2" },
+    "2026-03-26":{ type:"school",    cycleDay:"5", note:"Official calendar" },
+    "2026-03-27":{ type:"school",    cycleDay:"6", note:"Jay Peak Ski Trip 7/8 Grade" },
+    "2026-03-30":{ type:"school",    cycleDay:"1", note:"Official calendar" },
+    "2026-03-31":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-04-01":{ type:"school",    cycleDay:"3", note:"MCAS: Grades 6-8 ELA" },
+    "2026-04-02":{ type:"school",    cycleDay:"4", note:"MCAS: Grades 6-8 ELA" },
+    "2026-04-03":{ type:"half-day",  cycleDay:"5", note:"Scheduled Half-Day" },
+    "2026-04-06":{ type:"school",    cycleDay:"6", note:"PK-12 Faculty Meeting" },
+    "2026-04-07":{ type:"school",    cycleDay:"1", note:"Official calendar" },
+    "2026-04-08":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-04-09":{ type:"school",    cycleDay:"3", note:"Official calendar" },
+    "2026-04-10":{ type:"school",    cycleDay:"4", note:"Official calendar" },
+    "2026-04-13":{ type:"school",    cycleDay:"5", note:"Official calendar" },
+    "2026-04-14":{ type:"school",    cycleDay:"6", note:"Official calendar" },
+    "2026-04-15":{ type:"school",    cycleDay:"1", note:"Official calendar" },
+    "2026-04-16":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-04-17":{ type:"school",    cycleDay:"3", note:"Official calendar" },
+    "2026-04-20":{ type:"no-school", cycleDay:"",  note:"Schools Closed" },
+    "2026-04-21":{ type:"no-school", cycleDay:"",  note:"Schools Closed" },
+    "2026-04-22":{ type:"no-school", cycleDay:"",  note:"Schools Closed" },
+    "2026-04-23":{ type:"no-school", cycleDay:"",  note:"Schools Closed" },
+    "2026-04-24":{ type:"no-school", cycleDay:"",  note:"Schools Closed" },
+    "2026-04-27":{ type:"school",    cycleDay:"4", note:"Official calendar" },
+    "2026-04-28":{ type:"school",    cycleDay:"5", note:"MCAS: Grade 8 Civics" },
+    "2026-04-29":{ type:"school",    cycleDay:"6", note:"Official calendar" },
+    "2026-04-30":{ type:"school",    cycleDay:"1", note:"MCAS: Grade 8 Civics" },
+    "2026-05-01":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-05-04":{ type:"school",    cycleDay:"3", note:"Official calendar" },
+    "2026-05-05":{ type:"school",    cycleDay:"4", note:"MCAS: Grades 6-8 Math 1" },
+    "2026-05-06":{ type:"school",    cycleDay:"5", note:"MCAS: Grades 6-8 Math 2" },
+    "2026-05-07":{ type:"school",    cycleDay:"6", note:"Official calendar" },
+    "2026-05-08":{ type:"school",    cycleDay:"1", note:"Official calendar" },
+    "2026-05-11":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-05-12":{ type:"school",    cycleDay:"3", note:"Official calendar" },
+    "2026-05-13":{ type:"school",    cycleDay:"4", note:"MCAS: Grades 6-8 Math" },
+    "2026-05-14":{ type:"school",    cycleDay:"5", note:"MCAS: Grades 6-8 Math" },
+    "2026-05-15":{ type:"school",    cycleDay:"6", note:"Official calendar" },
+    "2026-05-19":{ type:"half-day",  cycleDay:"1", note:"Scheduled Half-Day" },
+    "2026-05-20":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-05-21":{ type:"school",    cycleDay:"3", note:"MCAS: Grade 8 STE 1" },
+    "2026-05-22":{ type:"school",    cycleDay:"4", note:"MCAS: Grade 8 STE 2" },
+    "2026-05-25":{ type:"no-school", cycleDay:"",  note:"Memorial Day" },
+    "2026-05-26":{ type:"school",    cycleDay:"6", note:"Official calendar" },
+    "2026-05-27":{ type:"school",    cycleDay:"1", note:"Official calendar" },
+    "2026-05-28":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-05-29":{ type:"school",    cycleDay:"3", note:"Official calendar" },
+    "2026-06-01":{ type:"school",    cycleDay:"4", note:"Official calendar" },
+    "2026-06-02":{ type:"school",    cycleDay:"5", note:"Official calendar" },
+    "2026-06-03":{ type:"school",    cycleDay:"6", note:"Official calendar" },
+    "2026-06-04":{ type:"school",    cycleDay:"1", note:"Official calendar" },
+    "2026-06-05":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-06-08":{ type:"school",    cycleDay:"3", note:"Official calendar" },
+    "2026-06-09":{ type:"school",    cycleDay:"4", note:"Official calendar" },
+    "2026-06-10":{ type:"half-day",  cycleDay:"",  note:"Scheduled Half-Day" },
+    "2026-06-11":{ type:"school",    cycleDay:"5", note:"Official calendar" },
+    "2026-06-12":{ type:"school",    cycleDay:"6", note:"Official calendar" },
+    "2026-06-15":{ type:"half-day",  cycleDay:"1", note:"Scheduled Half-Day" },
+    "2026-06-16":{ type:"school",    cycleDay:"2", note:"Official calendar" },
+    "2026-06-17":{ type:"school",    cycleDay:"3", note:"Official calendar" },
+    "2026-06-18":{ type:"school",    cycleDay:"4", note:"Term Closure" },
+    "2026-06-19":{ type:"no-school", cycleDay:"",  note:"Schools Closed" }
+  },
+  location:{ lastKnown:null, status:"Unknown" },
+  homework:[],
+  events:[]
+};
+
+// ── HELPERS ──────────────────────────────────────────────────────
+function escapeHtml(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function escapeAttr(s){ return escapeHtml(s); }
+function getNow(){ return new Date(); }
+function toLocalISODate(d){ return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+function toLocalTime(d){ return d.toTimeString().slice(0,5); }
+function getAutoDate(){ return toLocalISODate(getNow()); }
+function getAutoTime(){ return toLocalTime(getNow()); }
+function isWeekend(s){ const d=new Date(s+'T12:00:00'); return d.getDay()===0||d.getDay()===6; }
+function formatLongDate(s){ return new Date(s+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'}); }
+
+// ── STORAGE ──────────────────────────────────────────────────────
+function deepMerge(base, inc){
+  return {
+    ...base, ...inc,
+    settings:{ ...base.settings,...(inc.settings||{}), schoolLocation:{...base.settings.schoolLocation,...((inc.settings||{}).schoolLocation||{})} },
+    bellSchedule:{ ...base.bellSchedule,...(inc.bellSchedule||{}) },
+    blockSchedule:{ ...base.blockSchedule,...(inc.blockSchedule||{}) },
+    calendar:{ ...base.calendar,...(inc.calendar||{}) },
+    classes:  inc.classes  || base.classes,
+    location: { ...base.location,...(inc.location||{}) },
+    homework: inc.homework || base.homework,
+    events:   inc.events   || base.events
+  };
+}
+function loadPlanner(){
+  try{ const r=localStorage.getItem(STORAGE_KEY); return r ? deepMerge(structuredClone(defaultData),JSON.parse(r)) : structuredClone(defaultData); }
+  catch{ return structuredClone(defaultData); }
+}
+function savePlanner(){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(planner,null,2));
+  const p=document.getElementById('jsonPreview'); if(p) p.value=JSON.stringify(planner,null,2);
+}
+
+let planner = loadPlanner();
+
+// ── CALENDAR / SCHEDULE LOGIC ────────────────────────────────────
+function getDayInfo(dateStr){
+  const e=planner.calendar[dateStr];
+  if(e) return { type:e.type||'school', cycleDay:e.cycleDay||'', note:e.note||'' };
+  if(isWeekend(dateStr)) return { type:'weekend', cycleDay:'', note:'Weekend' };
+  return { type:'unknown', cycleDay:'', note:'No official calendar entry for this date' };
+}
+function getScheduleForDate(dateStr){
+  const info=getDayInfo(dateStr);
+  if(info.type==='no-school'||info.type==='weekend') return [];
+  const dayMap=CYCLE_SCHEDULE[String(info.cycleDay||'').trim()];
+  if(dayMap){
+    return ['A','B','C','D','E','F','G']
+      .map(b=>({ block:b, className:dayMap[b]||'', start:planner.bellSchedule[b]?.start||'', end:planner.bellSchedule[b]?.end||'' }))
+      .filter(b=>b.className!=='');
+  }
+  return ['A','B','C','D','E','F','G'].map(b=>({ block:b, className:planner.blockSchedule[b]||'', start:planner.bellSchedule[b]?.start||'', end:planner.bellSchedule[b]?.end||'' }));
+}
+function getCurrentAndNextBlock(schedule,time){
+  let current=null,next=null;
+  for(let i=0;i<schedule.length;i++){
+    const b=schedule[i];
+    if(time>=b.start&&time<=b.end){ current=b; next=schedule[i+1]||null; break; }
+    if(time<b.start){ next=b; break; }
+  }
+  return {current,next};
+}
+function findClassInfo(name){ return planner.classes.find(c=>c.name===name)||{name,teacher:'',room:''}; }
+
+// ── NAVIGATION ───────────────────────────────────────────────────
+function showPage(id, btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const t=document.getElementById('page-'+id);
+  if(t) t.classList.add('active');
+  if(btn) btn.classList.add('active');
+  renderAll();
+}
+
+// ── RENDER: SUMMARY CARDS ────────────────────────────────────────
+function renderSummary(){
+  const date=getAutoDate(), info=getDayInfo(date);
+  const dueToday=planner.homework.filter(h=>h.dueDate===date&&!h.completed).length;
+  const overdue=planner.homework.filter(h=>h.dueDate<date&&!h.completed).length;
+  const eventsToday=planner.events.filter(e=>e.date===date).length;
+  const openHw=planner.homework.filter(h=>!h.completed).length;
+
+  // Date bar
+  const d=new Date(date+'T12:00:00');
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  set('fdbDow',  d.toLocaleDateString(undefined,{weekday:'long'}));
+  set('fdbMonth',d.toLocaleDateString(undefined,{month:'long'})+' ');
+  set('fdbDay',  d.getDate());
+  set('fdbYear', d.getFullYear());
+  set('fdbCycle',info.cycleDay?'Day '+info.cycleDay:'No School Day');
+  set('dashSubtitle', d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'})+(info.note?' — '+info.note:''));
+
+  // Nav badge
+  const navHw=document.getElementById('navHomework');
+  if(navHw){ const old=navHw.querySelector('.nav-badge'); if(old) old.remove(); if(openHw>0){ const b=document.createElement('span'); b.className='nav-badge'; b.textContent=openHw; navHw.appendChild(b); } }
+
+  // Cycle pill
+  const pill=document.getElementById('cycleDayPill');
+  if(pill) pill.textContent=info.cycleDay?'📅 Day '+info.cycleDay:'—';
+
+  const typeColor={ school:'accent-green','half-day':'accent-orange','no-school':'accent-red',weekend:'accent-purple' };
+  const cards=[
+    { title:'School Day',   value:info.cycleDay?'Day '+info.cycleDay:'—',    note:info.note||'No entry',             icon:'🏫', accent:typeColor[info.type]||'' },
+    { title:'Day Type',     value:info.type.replace('-',' ').replace(/\b\w/g,c=>c.toUpperCase()), note:'From official calendar', icon:'📅', accent:typeColor[info.type]||'' },
+    { title:'Due Today',    value:String(dueToday),  note:overdue?overdue+' overdue':'Nothing overdue', icon:'📚', accent:dueToday?'accent-orange':'accent-green' },
+    { title:'Events Today', value:String(eventsToday),note:eventsToday?'Scheduled today':'Clear day',  icon:'🗓️', accent:eventsToday?'accent-purple':'' }
+  ];
+  const c=document.getElementById('summaryCards');
+  if(c) c.innerHTML=cards.map(x=>`
+    <div class="card ${escapeHtml(x.accent)}">
+      <div class="card-header"><span class="card-title">${escapeHtml(x.title)}</span><span class="card-icon">${x.icon}</span></div>
+      <div class="card-value">${escapeHtml(x.value)}</div>
+      <div class="card-note">${escapeHtml(x.note)}</div>
+    </div>`).join('');
+}
+
+// ── RENDER: LIVE NOW ─────────────────────────────────────────────
+function renderLiveNow(){
+  const date=getAutoDate(), time=getAutoTime(), info=getDayInfo(date);
+  const schedule=getScheduleForDate(date), state=getCurrentAndNextBlock(schedule,time);
+  const c=document.getElementById('liveNowCard'); if(!c) return;
+
+  if(info.type==='no-school'){ c.innerHTML=`<div class="live-now-label">🏠 No School</div><div class="live-now-class">Day Off</div><div class="live-now-meta">${escapeHtml(info.note||'No classes today.')}</div>`; return; }
+  if(info.type==='weekend'){   c.innerHTML=`<div class="live-now-label">😴 Weekend</div><div class="live-now-class">Weekend</div><div class="live-now-meta">No school schedule today.</div>`; return; }
+  if(info.type==='unknown'||!schedule.length){ c.innerHTML=`<div class="live-now-label">⚠️ Unknown</div><div class="live-now-class">No Data</div><div class="live-now-meta">No calendar entry for this date.</div>`; return; }
+
+  if(state.current){
+    const cls=findClassInfo(state.current.className);
+    c.innerHTML=`
+      <div class="live-now-label"><span class="live-dot"></span> In Class Now</div>
+      <div class="live-now-class">${escapeHtml(cls.name)}</div>
+      <div class="live-now-meta">${escapeHtml(cls.teacher||'Teacher not set')}${cls.room?' &nbsp;·&nbsp; Room <strong>'+escapeHtml(cls.room)+'</strong>':''}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <span class="badge green">● Now</span>
+        <span class="badge blue">${escapeHtml(state.current.block)} Block</span>
+        <span class="badge">${escapeHtml(state.current.start)} – ${escapeHtml(state.current.end)}</span>
+        ${info.cycleDay?`<span class="badge">Day ${escapeHtml(info.cycleDay)}</span>`:''}
+      </div>
+      <div class="live-now-next">${state.next?`⏭ Next: <strong>${escapeHtml(state.next.className)}</strong> at ${escapeHtml(state.next.start)}`:'✅ Last block of the day'}</div>`;
+    return;
+  }
+  if(state.next){
+    const cls=findClassInfo(state.next.className);
+    c.innerHTML=`
+      <div class="live-now-label"><span class="live-dot" style="background:var(--orange)"></span> Coming Up</div>
+      <div class="live-now-class">${escapeHtml(cls.name)}</div>
+      <div class="live-now-meta">${escapeHtml(cls.teacher||'Teacher not set')}${cls.room?' &nbsp;·&nbsp; Room <strong>'+escapeHtml(cls.room)+'</strong>':''}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <span class="badge orange">⏰ Upcoming</span>
+        <span class="badge blue">${escapeHtml(state.next.block)} Block</span>
+        <span class="badge">${escapeHtml(state.next.start)} – ${escapeHtml(state.next.end)}</span>
+      </div>
+      <div class="live-now-next">No class active right now.</div>`;
+    return;
+  }
+  c.innerHTML=`<div class="live-now-label">✅ Done
+</div><div class="live-now-class">School Day Over</div><div class="live-now-meta">All blocks have ended. Go rest!</div>`;
+}
+
+// ── RENDER: DAILY SCHEDULE ───────────────────────────────────────
+function renderDailySchedule(){
+  const date=getAutoDate(), time=getAutoTime(), info=getDayInfo(date);
+  const schedule=getScheduleForDate(date);
+
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  const d=new Date(date+'T12:00:00');
+  const longDate=d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  set('schedSubtitle', longDate+(info.cycleDay?' · Day '+info.cycleDay:'')+(info.note?' — '+info.note:''));
+
+  const badge=document.getElementById('schedDayBadge');
+  if(badge) badge.innerHTML=info.cycleDay?`<span class="badge blue">Day ${escapeHtml(info.cycleDay)}</span>`:`<span class="badge">No Cycle Day</span>`;
+
+  const buildHtml=(containerId)=>{
+    const container=document.getElementById(containerId); if(!container) return;
+    if(['no-school','weekend','unknown'].includes(info.type)){
+      const map={'no-school':['🏠','No School',info.note||'No classes today.'],'weekend':['😴','Weekend','No regular schedule today.'],'unknown':['❓','No Data','This date is outside the loaded calendar.']};
+      const [icon,title,note]=map[info.type]||['❓','Unknown',''];
+      container.innerHTML=`<div class="empty-state"><div class="empty-icon">${icon}</div><p><strong>${title}</strong></p><p>${escapeHtml(note)}</p></div>`;
+      return;
+    }
+    if(!schedule.length){ container.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div><p>No schedule loaded for this day.</p></div>`; return; }
+    container.innerHTML=schedule.map(block=>{
+      const cls=findClassInfo(block.className);
+      const active=block.start&&block.end&&time>=block.start&&time<=block.end;
+      const past=block.end&&time>block.end;
+      const dueCount=planner.homework.filter(h=>h.className===block.className&&!h.completed).length;
+      return `
+        <div class="timeline-item ${active?'active-block':''} ${past&&!active?'past-block':''}">
+          <div>
+            <div class="timeline-block-label">${escapeHtml(block.block)} BLOCK</div>
+            <div class="timeline-time">${escapeHtml(block.start)}</div>
+            <div class="timeline-time" style="color:var(--text3)">${escapeHtml(block.end)}</div>
+          </div>
+          <div>
+            <div class="timeline-class">${escapeHtml(cls.name)}</div>
+            <div class="timeline-teacher">${escapeHtml(cls.teacher||'Teacher not set')}</div>
+            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+              ${active?`<span class="badge green">● Now</span>`:''}
+              ${dueCount?`<span class="badge orange">📚 ${dueCount} open</span>`:''}
+            </div>
+          </div>
+          <div class="timeline-room">${escapeHtml(cls.room||'—')}</div>
+        </div>`;
+    }).join('');
+  };
+  buildHtml('dailySchedule');
+  buildHtml('dashMiniSchedule');
+}
+
+// ── RENDER: BLOCK EDITORS ────────────────────────────────────────
+function renderBlockEditors(){
+  const container=document.getElementById('scheduleEditors'); if(!container) return;
+  container.innerHTML=`
+    <div class="block-grid">
+      ${['A','B','C','D','E','F','G'].map(b=>`
+        <div class="block-editor-item">
+          <div class="block-letter">${b}</div>
+          <div class="block-time-label">${planner.bellSchedule[b]?.start||'--:--'} – ${planner.bellSchedule[b]?.end||'--:--'}</div>
+          <select id="block-${b}">
+            ${CLASS_NAMES.map(n=>`<option value="${escapeAttr(n)}" ${planner.blockSchedule[b]===n?'selected':''}>${escapeHtml(n)}</option>`).join('')}
+          </select>
+        </div>`).join('')}
+    </div>
+    <div class="btn-row"><button class="btn-primary" onclick="saveBlockSchedule()">💾 Save Block Schedule</button></div>`;
+}
+
+// ── RENDER: HOMEWORK ─────────────────────────────────────────────
+function renderHomework(){
+  const container=document.getElementById('homeworkList'); if(!container) return;
+  const today=getAutoDate();
+  const sorted=[...planner.homework].sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  if(!sorted.length){ container.innerHTML=`<div class="empty-state"><div class="empty-icon">🎉</div><p><strong>No homework yet</strong></p><p>A suspiciously peaceful academic landscape.</p></div>`; return; }
+  container.innerHTML=sorted.map(hw=>{
+    const overdue=!hw.completed&&hw.dueDate<today;
+    const pc=hw.priority==='High'?'red':hw.priority==='Medium'?'orange':'green';
+    const sc=hw.completed?'green':overdue?'red':'orange';
+    const sl=hw.completed?'✅ Done':overdue?'⚠️ Overdue':'⏳ Open';
+    return `
+      <div class="hw-item priority-${escapeHtml(hw.priority)} ${hw.completed?'done':''}">
+        <div class="hw-title">${escapeHtml(hw.title)}</div>
+        <div class="hw-meta">${escapeHtml(hw.className)} &nbsp;·&nbsp; Due ${escapeHtml(formatLongDate(hw.dueDate))}</div>
+        <div class="hw-actions">
+          <span class="badge ${pc}">${escapeHtml(hw.priority)}</span>
+          <span class="badge ${sc}">${sl}</span>
+          ${hw.notes?`<span class="badge">${escapeHtml(hw.notes)}</span>`:''}
+        </div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="${hw.completed?'btn-secondary btn-sm':'btn-success btn-sm'}" onclick="toggleHomework('${hw.id}')">${hw.completed?'↩ Mark Open':'✅ Mark Done'}</button>
+          <button class="btn-danger btn-sm" onclick="deleteHomework('${hw.id}')">🗑 Delete</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── RENDER: EVENTS ───────────────────────────────────────────────
+function renderEvents(){
+  const container=document.getElementById('eventList'); if(!container) return;
+  const sorted=[...planner.events].sort((a,b)=>`${a.date} ${a.time||'23:59'}`.localeCompare(`${b.date} ${b.time||'23:59'}`));
+  if(!sorted.length){ container.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div><p><strong>No events yet</strong></p><p>Your future is unusually tidy.</p></div>`; return; }
+  container.innerHTML=sorted.map(ev=>{
+    const d=new Date(ev.date+'T12:00:00');
+    const month=d.toLocaleDateString(undefined,{month:'short'}).toUpperCase();
+    return `
+      <div class="event-item">
+        <div class="event-date-badge"><div class="month">${escapeHtml(month)}</div><div class="day">${d.getDate()}</div></div>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:600;margin-bottom:4px;">${escapeHtml(ev.title)}</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">${escapeHtml(formatLongDate(ev.date))}${ev.time?' &nbsp;·&nbsp; '+escapeHtml(ev.time):''}</div>
+          ${ev.notes?`<div style="font-size:12px;color:var(--text3);">${escapeHtml(ev.notes)}</div>`:''}
+        </div>
+        <button class="btn-danger btn-sm btn-icon" onclick="deleteEvent('${ev.id}')">🗑</button>
+      </div>`;
+  }).join('');
+}
+
+// ── RENDER: CALENDAR TABLE ───────────────────────────────────────
+function renderCalendarTable(){
+  const tbody=document.querySelector('#calendarTable tbody'); if(!tbody) return;
+  tbody.innerHTML='';
+  const entries=Object.keys(planner.calendar).sort();
+  const cb=document.getElementById('calendarCount'); if(cb) cb.textContent=entries.length+' days';
+  entries.forEach(date=>{
+    const row=planner.calendar[date];
+    const tc={'school':'type-school','half-day':'type-half-day','no-school':'type-no-school','weekend':'type-weekend'}[row.type]||'';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td style="font-variant-numeric:tabular-nums;font-weight:600;">${escapeHtml(date)}</td>
+      <td><span class="type-pill ${tc}">${escapeHtml(row.type||'')}</span></td>
+      <td>${row.cycleDay?`<span class="badge blue">Day ${escapeHtml(row.cycleDay)}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
+      <td style="color:var(--text2);font-size:12px;">${escapeHtml(row.note||'')}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── RENDER: DASHBOARD HOMEWORK ───────────────────────────────────
+function renderDashHomework(){
+  const container=document.getElementById('dashHomework'); if(!container) return;
+  const today=getAutoDate();
+  const upcoming=[...planner.homework].filter(h=>!h.completed).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)).slice(0,5);
+  if(!upcoming.length){ container.innerHTML=`<div class="empty-state" style="padding:24px;"><div class="empty-icon">🎉</div><p>No open assignments. Enjoy it while it lasts!</p></div>`; return; }
+  container.innerHTML=upcoming.map(hw=>{
+    const overdue=hw.dueDate<today, dueToday=hw.dueDate===today;
+    const pc=hw.priority==='High'?'red':hw.priority==='Medium'?'orange':'green';
+    const sc=overdue?'red':dueToday?'orange':'blue';
+    const sl=overdue?'⚠️ Overdue':dueToday?'📌 Due Today':'📅 '+hw.dueDate;
+    return `
+      <div class="hw-item priority-${escapeHtml(hw.priority)}" style="margin-bottom:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div><div class="hw-title">${escapeHtml(hw.title)}</div><div class="hw-meta">${escapeHtml(hw.className)}</div></div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <span class="badge ${pc}">${escapeHtml(hw.priority)}</span>
+            <span class="badge ${sc}">${sl}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── RENDER: LOCATION DOT ─────────────────────────────────────────
+function syncLocationDot(){
+  const dot=document.getElementById('locationDot'); if(!dot) return;
+  const s=(planner.location.status||'').toLowerCase();
+  dot.className='location-dot';
+  if(s.includes('at school')) dot.classList.add('at-school');
+  else if(s.includes('away')) dot.classList.add('away');
+  else dot.classList.add('unknown');
+}
+
+// ── RENDER: TOPBAR CLOCK ─────────────────────────────────────────
+function tickClock(){
+  const el=document.getElementById('topbarClock');
+  if(el) el.textContent=new Date().toLocaleTimeString();
+}
+
+// ── RENDER ALL ───────────────────────────────────────────────────
+function renderAll(){
+  const place=document.getElementById('placeStatus'); if(place) place.value=planner.location.status||'Unknown';
+  syncAutoDateTimeToInputs();
+  syncLocationDot();
+  tickClock();
+  renderSummary();
+  renderLiveNow();
+  renderDailySchedule();
+  renderBlockEditors();
+  renderHomework();
+  renderEvents();
+  renderCalendarTable();
+  renderDashHomework();
+  savePlanner();
+}
+
+// ── INPUT SYNC ───────────────────────────────────────────────────
+function syncAutoDateTimeToInputs(){
+  const de=document.getElementById('liveDate'), te=document.getElementById('liveTime');
+  if(de) de.value=getAutoDate();
+  if(te) te.value=getAutoTime();
+}
+
+// ── HYDRATE CONTROLS ─────────────────────────────────────────────
+function hydrateControls(){
+  syncAutoDateTimeToInputs();
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v??''; };
+  set('overrideDate', getAutoDate());
+  set('hwDueDate',    getAutoDate());
+  set('eventDate',    getAutoDate());
+  set('schoolLat',    planner.settings.schoolLocation.lat);
+  set('schoolLng',    planner.settings.schoolLocation.lng);
+  set('schoolRadius', planner.settings.schoolLocation.radiusMeters??250);
+  set('locationMode', planner.settings.locationMode||'auto');
+  set('placeStatus',  planner.location.status||'Unknown');
+  const hwClass=document.getElementById('hwClass');
+  if(hwClass) hwClass.innerHTML=planner.classes.map(c=>`<option value="${escapeAttr(c.name)}">${escapeHtml(c.name)}</option>`).join('');
+}
+
+// ── ACTIONS ──────────────────────────────────────────────────────
+function saveSettings(){
+  planner.settings.schoolLocation.lat=document.getElementById('schoolLat').value;
+  planner.settings.schoolLocation.lng=document.getElementById('schoolLng').value;
+  planner.settings.schoolLocation.radiusMeters=Number(document.getElementById('schoolRadius').value||250);
+  planner.settings.locationMode=document.getElementById('locationMode').value;
+  savePlanner(); renderAll();
+}
+function saveCalendarOverride(){
+  const date=document.getElementById('overrideDate').value;
+  if(!date) return alert('Choose a date.');
+  planner.calendar[date]={ ...(planner.calendar[date]||{}), type:document.getElementById('overrideType').value, cycleDay:document.getElementById('overrideCycleDay').value, note:document.getElementById('overrideNote').value.trim() };
+  savePlanner(); renderAll();
+}
+function saveBlockSchedule(){
+  ['A','B','C','D','E','F','G'].forEach(b=>{ const el=document.getElementById('block-'+b); if(el) planner.blockSchedule[b]=el.value; });
+  savePlanner(); renderAll();
+}
+function addHomework(){
+  const title=document.getElementById('hwTitle').value.trim();
+  const dueDate=document.getElementById('hwDueDate').value;
+  if(!title||!dueDate) return alert('Title and due date are required.');
+  planner.homework.push({ id:crypto.randomUUID(), className:document.getElementById('hwClass').value, title, dueDate, priority:document.getElementById('hwPriority').value, notes:document.getElementById('hwNotes').value.trim(), completed:false, createdAt:new Date().toISOString() });
+  document.getElementById('hwTitle').value='';
+  document.getElementById('hwNotes').value='';
+  savePlanner(); renderAll();
+}
+function addEvent(){
+  const title=document.getElementById('eventTitle').value.trim();
+  const date=document.getElementById('eventDate').value;
+  if(!title||!date) return alert('Title and date are required.');
+  planner.events.push({ id:crypto.randomUUID(), title, date, time:document.getElementById('eventTime').value, notes:document.getElementById('eventNotes').value.trim(), createdAt:new Date().toISOString() });
+  document.getElementById('eventTitle').value='';
+  document.getElementById('eventTime').value='';
+  document.getElementById('eventNotes').value='';
+  savePlanner(); renderAll();
+}
+function toggleHomework(id){ const h=planner.homework.find(x=>x.id===id); if(h){ h.completed=!h.completed; savePlanner(); renderAll(); } }
+function deleteHomework(id){ planner.homework=planner.homework.filter(x=>x.id!==id); savePlanner(); renderAll(); }
+function deleteEvent(id){ planner.events=planner.events.filter(x=>x.id!==id); savePlanner(); renderAll(); }
+
+// ── LOCATION ─────────────────────────────────────────────────────
+function haversineMeters(la1,lo1,la2,lo2){ const R=6371000,r=d=>d*Math.PI/180,dL=r(la2-la1),dl=r(lo2-lo1),a=Math.sin(dL/2)**2+Math.cos(r(la1))*Math.cos(r(la2))*Math.sin(dl/2)**2; return 2*R*Math.asin(Math.sqrt(a)); }
+function detectLocation(){
+  const mode=document.getElementById('locationMode')?.value||planner.settings.locationMode;
+  if(mode==='school'){ planner.location.status='At School (manual)'; const el=document.getElementById('placeStatus'); if(el) el.value=planner.location.status; savePlanner(); renderAll(); return; }
+  if(mode==='away'){   planner.location.status='Away From School (manual)'; const el=document.getElementById('placeStatus'); if(el) el.value=planner.location.status; savePlanner(); renderAll(); return; }
+  if(!navigator.geolocation){ planner.location.status='Geolocation Unsupported'; savePlanner(); renderAll(); return; }
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const {latitude:uLat,longitude:uLng,accuracy}=pos.coords;
+    const sLat=Number(planner.settings.schoolLocation.lat), sLng=Number(planner.settings.schoolLocation.lng), radius=Number(planner.settings.schoolLocation.radiusMeters||250);
+    planner.location.lastKnown={lat:uLat,lng:uLng,accuracy,timestamp:new Date().toISOString()};
+    if(!Number.isFinite(sLat)||!Number.isFinite(sLng)){ planner.location.status='Location Found — School Coordinates Not Set'; }
+    else { const dist=haversineMeters(uLat,uLng,sLat,sLng); planner.location.status=dist<=radius?`At School (${Math.round(dist)}m away)`:`Away From School (${Math.round(dist)}m away)`; }
+    const el=document.getElementById('placeStatus'); if(el) el.value=planner.location.status;
+    savePlanner(); renderAll();
+  },()=>{ planner.location.status='Location Permission Denied'; savePlanner(); renderAll(); },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+}
+
+// ── EXPORT / IMPORT / RESET ──────────────────────────────────────
+function exportJSON(){ const b=new Blob([JSON.stringify(planner,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='diamond_ms_planner_save.json'; a.click(); URL.revokeObjectURL(a.href); }
+function resetPlanner(){ if(!confirm('Reset all planner data? This cannot be undone.')) return; planner=structuredClone(defaultData); hydrateControls(); savePlanner(); renderAll(); }
+function importJSON(file){ const r=new FileReader(); r.onload=()=>{ try{ planner=deepMerge(structuredClone(defaultData),JSON.parse(r.result)); hydrateControls(); savePlanner(); renderAll(); } catch{ alert('Invalid JSON file.'); } }; r.readAsText(file); }
+
+document.getElementById('importFile').addEventListener('change',e=>{ const f=e.target.files[0]; if(f) importJSON(f); });
+
+// ── LIVE TICK ────────────────────────────────────────────────────
+setInterval(()=>{
+  tickClock();
+  syncAutoDateTimeToInputs();
+  renderSummary();
+  renderLiveNow();
+  renderDailySchedule();
+  renderDashHomework();
+  syncLocationDot();
+},1000);
+
+// ── BOOT ─────────────────────────────────────────────────────────
+hydrateControls();
+renderAll();
+detectLocation();
+console.log('[Planner] Booted. Date:',getAutoDate(),'Cycle Day:',getDayInfo(getAutoDate()).cycleDay);
+</script>
+</body>
+</html>
